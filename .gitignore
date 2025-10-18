@@ -41,3 +41,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+FIREBASE_NOTIFICATIONS_SETUP.md
+FIREBASE_REPORTS_STRUCTURE.md
+WARP.md
