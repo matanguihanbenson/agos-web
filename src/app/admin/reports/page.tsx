@@ -21,16 +21,16 @@ import {
 } from 'lucide-react';
 import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { exportService } from '@/services/exportService';
 import { useAuth } from '@/contexts/AuthContext';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface TrashBreakdown {
-  cardboard: number;
-  glass: number;
-  metal: number;
-  paper: number;
   plastic: number;
-  biodegradable: number;
+  paper: number;
+  metal: number;
+  glass: number;
+  organic: number;
   [key: string]: number;
 }
 
@@ -290,12 +290,11 @@ export default function AdminReports() {
         totalItems: 0,
         averageDaily: 0,
         trashBreakdown: {
-          cardboard: 0,
-          glass: 0,
-          metal: 0,
-          paper: 0,
           plastic: 0,
-          biodegradable: 0
+          paper: 0,
+          metal: 0,
+          glass: 0,
+          organic: 0
         },
         areaBreakdown: {},
         activeBots: 0,
@@ -308,21 +307,45 @@ export default function AdminReports() {
 
     // Aggregate trash types
     const trashTotals: TrashBreakdown = {
-      cardboard: 0,
-      glass: 0,
-      metal: 0,
-      paper: 0,
       plastic: 0,
-      biodegradable: 0
+      paper: 0,
+      metal: 0,
+      glass: 0,
+      organic: 0
     };
 
     filteredDeployments.forEach(deployment => {
       const trashByType = deployment.trash_collection.trash_by_type || {};
       Object.entries(trashByType).forEach(([type, count]) => {
-        const normalizedType = type.toLowerCase();
-        if (normalizedType in trashTotals) {
-          trashTotals[normalizedType] += count;
+        const key = type.toLowerCase();
+
+        if (key.includes('plastic')) {
+          trashTotals.plastic += count;
+          return;
         }
+
+        if (key.includes('paper') || key.includes('cardboard')) {
+          trashTotals.paper += count;
+          return;
+        }
+
+        if (key.includes('metal')) {
+          trashTotals.metal += count;
+          return;
+        }
+
+        if (key.includes('glass')) {
+          trashTotals.glass += count;
+          return;
+        }
+
+        if (key.includes('bio') || key.includes('organic')) {
+          trashTotals.organic += count;
+          return;
+        }
+
+        // Any uncategorized types are grouped as Organic
+        trashTotals.organic += count;
       });
     });
 
@@ -355,18 +378,59 @@ export default function AdminReports() {
   };
 
   const getDateRangeLabel = () => {
-    switch (dateFilter) {
-      case 'today': return 'Today';
-      case 'week': return 'Last 7 days';
-      case 'month': return 'Last 30 days';
-      case 'year': return 'Last 365 days';
-      case 'custom':
-        if (customDateRange.start && customDateRange.end) {
-          return `${customDateRange.start} to ${customDateRange.end}`;
-        }
-        return 'Custom period';
-      default: return 'Last 30 days';
+    const formatDate = (date: Date) =>
+      date.toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+    const now = new Date();
+    let start: Date | null = null;
+    let end: Date | null = null;
+
+    if (dateFilter !== 'custom') {
+      start = new Date();
+
+      switch (dateFilter) {
+        case 'today':
+          start.setHours(0, 0, 0, 0);
+          end = new Date(start);
+          end.setHours(23, 59, 59, 999);
+          break;
+        case 'week':
+          start.setDate(now.getDate() - 7);
+          end = now;
+          break;
+        case 'month':
+          start.setDate(now.getDate() - 30);
+          end = now;
+          break;
+        case 'year':
+          start.setFullYear(now.getFullYear() - 1);
+          end = now;
+          break;
+      }
+    } else if (customDateRange.start && customDateRange.end) {
+      start = new Date(customDateRange.start);
+      end = new Date(customDateRange.end);
+      end.setHours(23, 59, 59, 999);
     }
+
+    if (!start || !end) {
+      return 'All time';
+    }
+
+    const sameDay =
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate();
+
+    if (sameDay) {
+      return formatDate(start);
+    }
+
+    return `${formatDate(start)} to ${formatDate(end)}`;
   };
 
   // Colors for charts
@@ -657,6 +721,54 @@ export default function AdminReports() {
     }
   ];
 
+  const handleExportReport = async (reportId: string) => {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
+
+    let reportType: string;
+    switch (reportId) {
+      case 'trash-classification':
+        reportType = 'trash-distribution';
+        break;
+      case 'collection-by-area':
+        reportType = 'volume-trends';
+        break;
+      case 'water-quality':
+        reportType = 'water-quality';
+        break;
+      case 'top-polluted-areas':
+        reportType = 'hotspot-mapping';
+        break;
+      default:
+        reportType = 'trash-distribution';
+    }
+
+    try {
+      await exportService.exportReport(
+        {
+          reportType,
+          title: report.title,
+          subtitle: report.subtitle,
+          timeline: getDateRangeLabel(),
+          selectedAreas: Object.keys(summaryData.areaBreakdown),
+          comparisonMode: 'overview',
+          data: [],
+          metadata: {
+            dateFilter,
+            customDateRange,
+            selectedBots,
+          },
+        },
+        { format: 'pdf' }
+      );
+    } catch (error) {
+      console.error('Failed to export report:', error);
+      if (typeof window !== 'undefined') {
+        alert('Failed to export report. Please try again.');
+      }
+    }
+  };
+
 
   if (loading) {
     return (
@@ -899,6 +1011,7 @@ export default function AdminReports() {
                       </div>
                     </div>
                     <button 
+                      onClick={() => handleExportReport(report.id)}
                       className="text-blue-600 hover:text-blue-700 p-2 rounded-lg hover:bg-blue-50 transition-colors"
                       title="Export Report"
                     >

@@ -80,7 +80,15 @@ export default function AdminLayout({
 
   const navigation = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Reports', href: '/admin/reports', icon: FileText },
+    {
+      name: 'Reports',
+      href: '/admin/reports',
+      icon: FileText,
+      children: [
+        { name: 'Summary', href: '/admin/reports' },
+        { name: 'Export Reports', href: '/admin/reports/export' },
+      ],
+    },
     { name: 'Deployment History', href: '/admin/deployment-history', icon: History },
     { name: 'Bot Tracking', href: '/admin/bot-tracking', icon: Ship },
     { name: 'Trash Deposits', href: '/admin/trash-deposits', icon: MapPin },
@@ -203,12 +211,17 @@ export default function AdminLayout({
           <nav className={`flex-1 ${isCollapsed ? 'px-2' : 'px-3'} py-4 space-y-1 overflow-y-auto overflow-x-hidden transition-all duration-300`}>
             {navigation.map((item) => {
               const Icon = item.icon;
+              const hasChildren = Array.isArray((item as any).children) && (item as any).children.length > 0;
+              const children = hasChildren ? ((item as any).children as { name: string; href: string }[]) : [];
+              const isChildActive = hasChildren && children.some((child) => isActive(child.href));
+              const href = item.href || (hasChildren ? children[0]?.href : '#');
+
               return (
                 <div key={item.name} className="relative">
                   <Link
-                    href={item.href}
+                    href={href}
                     className={`flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-2 px-3'} py-2 rounded-lg text-sm font-medium transition-all duration-200 group ${
-                      isActive(item.href)
+                      isActive(href) || isChildActive
                         ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg'
                         : 'text-slate-700 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md'
                     }`}
@@ -217,11 +230,30 @@ export default function AdminLayout({
                     <Icon className="h-4 w-4 flex-shrink-0" />
                     {!isCollapsed && <span className="text-xs truncate min-w-0">{item.name}</span>}
                   </Link>
-                  
+
                   {/* Tooltip for collapsed state */}
                   {isCollapsed && (
                     <div className="absolute left-full top-1/2 transform -translate-y-1/2 ml-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-[60] pointer-events-none">
                       {item.name}
+                    </div>
+                  )}
+
+                  {/* Sub-navigation for items with children (e.g., Reports) */}
+                  {hasChildren && !isCollapsed && (
+                    <div className="mt-1 ml-8 space-y-1">
+                      {children.map((child) => (
+                        <Link
+                          key={child.href}
+                          href={child.href}
+                          className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                            isActive(child.href)
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'text-slate-600 hover:bg-blue-50 hover:text-blue-700'
+                          }`}
+                        >
+                          <span className="truncate">{child.name}</span>
+                        </Link>
+                      ))}
                     </div>
                   )}
                 </div>

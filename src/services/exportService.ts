@@ -90,136 +90,194 @@ class ExportService {
   }
 
   private generateReportData(exportData: ExportData) {
-    const { reportType, timeline, selectedAreas, comparisonMode } = exportData;
-    
-    // Generate mock data based on report type and parameters
-    switch (reportType) {
-      case 'trash-distribution':
-        return this.generateTrashDistributionData(selectedAreas, timeline);
-      case 'volume-trends':
-        return this.generateVolumeTrendsData(selectedAreas, timeline);
-      case 'hotspot-mapping':
-        return this.generateHotspotData(selectedAreas, timeline);
-      case 'water-quality':
-        return this.generateWaterQualityData(selectedAreas, timeline);
-      case 'bot-performance':
-        return this.generateBotPerformanceData(timeline);
-      default:
-        return [];
+    // Legacy mock-data generator (no longer used).
+    // Kept for compatibility but all exports now rely on exportData.data
+    // transformed from real Firebase deployments.
+    return [];
+  }
+
+  private formatLocalDate(value: any): string {
+    let date: Date | null = null;
+
+    if (!value) {
+      return '';
     }
-  }
 
-  private generateTrashDistributionData(areas: string[], timeline: string): any[] {
-    const trashTypes = ['Plastic Bottles', 'Food Containers', 'Plastic Bags', 'Metal Cans', 'Other'];
-    const data: any[] = [];
-    
-    // Generate data for each area
-    areas.forEach(area => {
-      trashTypes.forEach(type => {
-        data.push({
-          'Area': this.getAreaDisplayName(area),
-          'Trash Type': type,
-          'Count': Math.floor(Math.random() * 500) + 50,
-          'Weight (kg)': (Math.random() * 25 + 5).toFixed(2),
-          'Timeline': timeline,
-          'Density Level': ['Low', 'Medium', 'High', 'Very High'][Math.floor(Math.random() * 4)],
-          'Collection Date': new Date().toLocaleDateString(),
-          'Bot ID': `AGOS-00${Math.floor(Math.random() * 3) + 1}`
-        });
-      });
+    // Firestore Timestamp
+    if (typeof value === 'object' && typeof (value as any).toDate === 'function') {
+      date = (value as any).toDate();
+    } else if (value instanceof Date) {
+      date = value;
+    } else if (typeof value === 'number') {
+      // Milliseconds since epoch
+      date = new Date(value);
+    } else if (typeof value === 'string') {
+      const parsed = new Date(value);
+      if (!isNaN(parsed.getTime())) {
+        date = parsed;
+      }
+    }
+
+    if (!date) return '';
+
+    return date.toLocaleDateString('en-US', {
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
     });
-    
-    return data;
   }
 
-  private generateVolumeTrendsData(areas: string[], timeline: string): any[] {
-    const data: any[] = [];
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    
-    areas.forEach(area => {
-      months.forEach((month, index) => {
-        data.push({
-          'Area': this.getAreaDisplayName(area),
-          'Period': `${month} 2024`,
-          'Total Weight (kg)': (Math.random() * 200 + 100).toFixed(2),
-          'Total Items': Math.floor(Math.random() * 1000) + 500,
-          'Collection Efficiency (%)': (Math.random() * 20 + 80).toFixed(1),
-          'Bot Hours': (Math.random() * 50 + 20).toFixed(1),
-          'Average Daily Collection': (Math.random() * 10 + 5).toFixed(2)
+  private normalizeTrashType(type: string | undefined | null): string {
+    if (!type) return 'Organic';
+
+    const t = type.toLowerCase();
+
+    if (t.includes('plastic')) return 'Plastic';
+
+    if (t.includes('paper') || t.includes('cardboard')) return 'Paper';
+
+    if (t.includes('metal')) return 'Metal';
+
+    if (t.includes('glass')) return 'Glass';
+
+    // Group biodegradable/organic and any other uncategorized types as Organic
+    if (t.includes('bio') || t.includes('organic')) return 'Organic';
+
+    return 'Organic';
+  }
+
+  private transformDeploymentsToRows(exportData: ExportData): any[] {
+    const { reportType, data } = exportData;
+
+    // If caller already passed flattened rows, use them as-is
+    if (data && data.length > 0 && !data[0].trash_collection) {
+      return data;
+    }
+
+    const deployments = (data || []) as any[];
+
+    switch (reportType) {
+      case 'trash-distribution': {
+        const rows: any[] = [];
+        deployments.forEach((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          const trashCollection = d.trash_collection || {};
+          const trashByType = (trashCollection.trash_by_type || {}) as Record<string, number>;
+          const totalWeight = trashCollection.total_weight;
+
+          const entries = Object.entries(trashByType);
+          if (entries.length === 0) {
+            rows.push({
+              'River': riverName,
+              'Date': date,
+              'Trash Type': 'N/A',
+              'Count': 0,
+              'Total Weight (kg)': typeof totalWeight === 'number' ? totalWeight : '',
+              'Bot ID': d.bot_id || '',
+            });
+          } else {
+            entries.forEach(([rawType, count]) => {
+              rows.push({
+                'River': riverName,
+                'Date': date,
+                'Trash Type': this.normalizeTrashType(rawType),
+                'Count': count,
+                'Total Weight (kg)': typeof totalWeight === 'number' ? totalWeight : '',
+                'Bot ID': d.bot_id || '',
+              });
+            });
+          }
         });
-      });
-    });
-    
-    return data;
-  }
+        return rows;
+      }
 
-  private generateHotspotData(areas: string[], timeline: string): any[] {
-    const data: any[] = [];
-    
-    areas.forEach(area => {
-      for (let i = 1; i <= 3; i++) {
-        data.push({
-          'Area': this.getAreaDisplayName(area),
-          'Hotspot Zone': `Zone ${i}`,
-          'Latitude': (13.4000 + Math.random() * 0.1).toFixed(6),
-          'Longitude': (121.1700 + Math.random() * 0.1).toFixed(6),
-          'Density Level': ['Medium', 'High', 'Very High'][Math.floor(Math.random() * 3)],
-          'Item Count': Math.floor(Math.random() * 1500) + 500,
-          'Priority': ['Low', 'Medium', 'High', 'Critical'][Math.floor(Math.random() * 4)],
-          'Last Updated': new Date().toLocaleDateString(),
-          'Trend': ['Increasing', 'Decreasing', 'Stable'][Math.floor(Math.random() * 3)]
+      case 'volume-trends': {
+        return deployments.map((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          const trashCollection = d.trash_collection || {};
+          return {
+            'River': riverName,
+            'Date': date,
+            'Total Items': trashCollection.total_items ?? '',
+            'Total Weight (kg)': trashCollection.total_weight ?? '',
+            'Bot ID': d.bot_id || '',
+          };
         });
       }
-    });
-    
-    return data;
-  }
 
-  private generateWaterQualityData(areas: string[], timeline: string): any[] {
-    const data: any[] = [];
-    
-    areas.forEach(area => {
-      for (let i = 0; i < 7; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        
-        data.push({
-          'Area': this.getAreaDisplayName(area),
-          'Date': date.toLocaleDateString(),
-          'pH Level': (Math.random() * 2 + 6.5).toFixed(2),
-          'Dissolved Oxygen (mg/L)': (Math.random() * 3 + 6).toFixed(2),
-          'Turbidity (NTU)': (Math.random() * 15 + 5).toFixed(2),
-          'Temperature (°C)': (Math.random() * 5 + 24).toFixed(1),
-          'Quality Index': Math.floor(Math.random() * 4) + 6,
-          'Status': ['Good', 'Fair', 'Poor'][Math.floor(Math.random() * 3)],
-          'Bot ID': `AGOS-00${Math.floor(Math.random() * 3) + 1}`
+      case 'water-quality': {
+        return deployments.map((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          const wq = (d as any).water_quality || {};
+          return {
+            'River': riverName,
+            'Date': date,
+            'Avg pH Level': wq.avg_ph_level ?? '',
+            'Avg Turbidity (NTU)': wq.avg_turbidity ?? '',
+            'Avg Temperature (°C)': wq.avg_temperature ?? '',
+            'Avg Dissolved Oxygen (mg/L)': wq.avg_dissolved_oxygen ?? '',
+            'Bot ID': d.bot_id || '',
+          };
         });
       }
-    });
-    
-    return data;
-  }
 
-  private generateBotPerformanceData(timeline: string): any[] {
-    const data: any[] = [];
-    const botIds = ['AGOS-001', 'AGOS-002', 'AGOS-003'];
-    
-    botIds.forEach(botId => {
-      data.push({
-        'Bot ID': botId,
-        'Status': ['Active', 'Maintenance', 'Charging'][Math.floor(Math.random() * 3)],
-        'Battery Level (%)': Math.floor(Math.random() * 50) + 50,
-        'Total Collection (kg)': (Math.random() * 100 + 50).toFixed(2),
-        'Operating Hours': (Math.random() * 100 + 50).toFixed(1),
-        'Efficiency (%)': (Math.random() * 20 + 80).toFixed(1),
-        'Location': ['Calapan River', 'Bucayao River', 'Naujan Lake'][Math.floor(Math.random() * 3)],
-        'Last Maintenance': new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-        'Total Distance (km)': (Math.random() * 50 + 20).toFixed(2),
-        'Signal Strength': ['Strong', 'Good', 'Weak'][Math.floor(Math.random() * 3)]
-      });
-    });
-    
-    return data;
+      case 'hotspot-mapping': {
+        return deployments.map((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          return {
+            'River': riverName,
+            'Date': date,
+            'Latitude': d.operation_lat ?? '',
+            'Longitude': d.operation_lng ?? '',
+            'Total Weight (kg)': d.trash_collection?.total_weight ?? '',
+            'Bot ID': d.bot_id || '',
+          };
+        });
+      }
+
+      case 'bot-performance': {
+        return deployments.map((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          const trashCollection = d.trash_collection || {};
+          return {
+            'Bot ID': d.bot_id || '',
+            'River': riverName,
+            'Date': date,
+            'Total Items': trashCollection.total_items ?? '',
+            'Total Weight (kg)': trashCollection.total_weight ?? '',
+          };
+        });
+      }
+
+      case 'deployment-summary': {
+        return deployments.map((d) => {
+          const riverName = d.river_name || d.river_id || '';
+          const date = this.formatLocalDate(d.created_at);
+          const trashCollection = d.trash_collection || {};
+          const wq = (d as any).water_quality || {};
+          return {
+            'River': riverName,
+            'Bot ID': d.bot_id || '',
+            'Status': d.status || '',
+            'Date': date,
+            'Total Items': trashCollection.total_items ?? '',
+            'Total Weight (kg)': trashCollection.total_weight ?? '',
+            'Avg pH Level': wq.avg_ph_level ?? '',
+            'Avg Turbidity (NTU)': wq.avg_turbidity ?? '',
+            'Avg Temperature (°C)': wq.avg_temperature ?? '',
+            'Avg Dissolved Oxygen (mg/L)': wq.avg_dissolved_oxygen ?? '',
+          };
+        });
+      }
+
+      default:
+        return deployments;
+    }
   }
 
   private getAreaDisplayName(area: string): string {
@@ -236,14 +294,13 @@ class ExportService {
   }
 
   private getTimeframeCovered(timeline: string): string {
-    switch (timeline) {
-      case 'today': return 'Today';
-      case 'week': return 'Last 7 days';
-      case 'month': return 'Last 30 days';
-      case 'year': return 'Last 365 days';
-      case 'current': return 'Current period';
-      default: return timeline || 'All time';
+    if (!timeline) {
+      return 'All time';
     }
+
+    // Treat the provided timeline as a ready-to-display label
+    // (e.g. "December 1, 2025" or "December 1, 2025 to December 7, 2025").
+    return timeline;
   }
 
   private getReportTypeDisplay(reportType: string): string {
@@ -543,6 +600,10 @@ class ExportService {
         case 'bot-performance':
           const botCharts = await this.generateBotPerformanceCharts(data);
           charts.push(...botCharts);
+          break;
+        case 'deployment-summary':
+          const deploymentCharts = await this.generateDeploymentSummaryCharts(data);
+          charts.push(...deploymentCharts);
           break;
       }
     } catch (error) {
@@ -1212,8 +1273,132 @@ class ExportService {
     return charts;
   }
 
+  private async generateDeploymentSummaryCharts(data: any[]): Promise<string[]> {
+    const charts: string[] = [];
+
+    // 1. Total weight by river
+    const byRiver = data.reduce((acc, row) => {
+      const river = row['River'] || 'Unknown';
+      const weight = parseFloat(row['Total Weight (kg)'] || 0);
+      acc[river] = (acc[river] || 0) + weight;
+      return acc;
+    }, {} as Record<string, number>);
+
+    if (Object.keys(byRiver).length > 0) {
+      const chart = await this.createChart({
+        type: 'bar',
+        data: {
+          labels: Object.keys(byRiver),
+          datasets: [
+            {
+              label: 'Total Weight (kg)',
+              data: Object.values(byRiver),
+              backgroundColor: '#3B82F6',
+              borderColor: '#2563EB',
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Weight (kg)', color: '#6B7280' },
+            },
+            x: {
+              title: { display: true, text: 'River', color: '#6B7280' },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+          },
+        },
+      }, 'Total Weight by River');
+
+      if (chart) charts.push(chart);
+    }
+
+    // 2. Total items by bot
+    const byBot = data.reduce((acc, row) => {
+      const botId = row['Bot ID'] || 'Unknown';
+      const items = parseFloat(row['Total Items'] || 0);
+      acc[botId] = (acc[botId] || 0) + items;
+      return acc;
+    }, {} as Record<string, number>);
+
+    if (Object.keys(byBot).length > 0) {
+      const chart = await this.createChart({
+        type: 'bar',
+        data: {
+          labels: Object.keys(byBot),
+          datasets: [
+            {
+              label: 'Total Items',
+              data: Object.values(byBot),
+              backgroundColor: '#10B981',
+              borderColor: '#059669',
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Items', color: '#6B7280' },
+            },
+            x: {
+              title: { display: true, text: 'Bot', color: '#6B7280' },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+          },
+        },
+      }, 'Total Items by Bot');
+
+      if (chart) charts.push(chart);
+    }
+
+    // 3. Status distribution
+    const byStatus = data.reduce((acc, row) => {
+      const status = row['Status'] || 'unknown';
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    if (Object.keys(byStatus).length > 0) {
+      const chart = await this.createChart({
+        type: 'pie',
+        data: {
+          labels: Object.keys(byStatus),
+          datasets: [
+            {
+              data: Object.values(byStatus),
+              backgroundColor: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444'],
+              borderWidth: 2,
+              borderColor: '#fff',
+            },
+          ],
+        },
+        options: {
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: { color: '#374151', font: { size: 12 } },
+            },
+          },
+        },
+      }, 'Deployment Status Distribution');
+
+      if (chart) charts.push(chart);
+    }
+
+    return charts;
+  }
+
   async exportToPDF(exportData: ExportData, options: ExportPDFOptions = {}): Promise<void> {
-    const data = this.generateReportData(exportData);
+    const data = this.transformDeploymentsToRows(exportData);
     const filename = options.filename || this.generateFilename(exportData.reportType, 'pdf');
     
     const doc = new jsPDF();
@@ -1345,88 +1530,92 @@ class ExportService {
     doc.setTextColor(40, 44, 52);
     doc.text(`${data.length} entries`, rightColX, metadataY + 69);
 
-    // Key Metrics Dashboard - moved to second page
+    // Single Data Table Page (table-focused export)
     if (data.length > 0) {
       doc.addPage();
-      
+
       doc.setFontSize(18);
       doc.setTextColor(40, 44, 52);
-      doc.text('Key Metrics Dashboard', margin, 30);
-      
-      const metrics = this.generateKeyMetrics(data, exportData.reportType);
-      
-      // Arrange in 2x2 grid for better fit
-      const cardWidth = (pageWidth - 2 * margin - 15) / 2; // 2 columns
-      const cardHeight = 50;
-      const metricsStartY = 50;
-      
-      metrics.slice(0, 4).forEach((metric, index) => {
-        const col = index % 2;
-        const row = Math.floor(index / 2);
-        const cardX = margin + (col * (cardWidth + 15));
-        const cardY = metricsStartY + (row * (cardHeight + 15));
-        
-        // Enhanced metric card background with gradient effect
-        doc.setFillColor(248, 250, 252);
-        doc.setDrawColor(59, 130, 246);
-        doc.setLineWidth(0.5);
-        doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 5, 5, 'FD');
-        
-        // Metric icon/indicator (colored rectangle)
-        doc.setFillColor(59, 130, 246);
-        doc.rect(cardX + 5, cardY + 5, 3, cardHeight - 10, 'F');
-        
-        // Metric value with enhanced styling
-        doc.setFontSize(20);
-        doc.setTextColor(40, 44, 52);
-        doc.text(metric.value, cardX + 15, cardY + 20);
-        
-        // Metric label
-        doc.setFontSize(10);
-        doc.setTextColor(100, 100, 100);
-        doc.text(metric.label, cardX + 15, cardY + 32);
-        
-        // Enhanced trend indicator with context
-        if (metric.trend) {
-          doc.setFontSize(9);
-          if (metric.trend.includes('+') || metric.trend.includes('increase')) {
-            doc.setTextColor(34, 197, 94); // Green for positive trend
-          } else if (metric.trend.includes('-') || metric.trend.includes('decrease')) {
-            doc.setTextColor(239, 68, 68); // Red for negative trend
-          } else {
-            doc.setTextColor(100, 100, 100); // Gray for neutral
-          }
-          doc.text(metric.trend, cardX + 15, cardY + 42);
+      doc.text(`Data Table - ${this.getReportTypeDisplay(exportData.reportType)}`, margin, 30);
+
+      let currentY = 50;
+      const headers = Object.keys(data[0]);
+      const maxCols = Math.min(headers.length, 6);
+      const selectedHeaders = headers.slice(0, maxCols);
+      const colWidth = (pageWidth - 2 * margin) / maxCols;
+
+      // Table header
+      doc.setFillColor(59, 130, 246);
+      doc.setTextColor(255, 255, 255);
+      doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
+
+      doc.setFontSize(8);
+      selectedHeaders.forEach((header, index) => {
+        const text = header.length > 18 ? header.substring(0, 18) + '...' : header;
+        doc.text(text, margin + index * colWidth + 2, currentY + 6);
+      });
+
+      currentY += 8;
+
+      // Rows
+      doc.setTextColor(40, 44, 52);
+      data.forEach((row, rowIndex) => {
+        if (rowIndex % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, currentY, pageWidth - 2 * margin, 6, 'F');
+        }
+
+        selectedHeaders.forEach((header, colIndex) => {
+          const value = String(row[header] ?? '');
+          const text = value.length > 22 ? value.substring(0, 22) + '...' : value;
+          doc.text(text, margin + colIndex * colWidth + 2, currentY + 4);
+        });
+
+        currentY += 6;
+
+        if (currentY > pageHeight - 20) {
+          doc.addPage();
+          currentY = 30;
+
+          doc.setFillColor(59, 130, 246);
+          doc.setTextColor(255, 255, 255);
+          doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
+          doc.setFontSize(8);
+          selectedHeaders.forEach((header, index) => {
+            const text = header.length > 18 ? header.substring(0, 18) + '...' : header;
+            doc.text(text, margin + index * colWidth + 2, currentY + 6);
+          });
+          currentY += 8;
+          doc.setTextColor(40, 44, 52);
         }
       });
     }
-    
-    // Generate and add charts if data exists
-    if (data.length > 0 && (options.includeCharts !== false)) {
+
+    // Charts & visualizations only for deployment-summary reports
+    if (exportData.reportType === 'deployment-summary' && data.length > 0) {
       try {
-        const charts = await this.generateCharts(data, exportData.reportType);
-        
+        const charts = await this.generateDeploymentSummaryCharts(data);
+
         if (charts.length > 0) {
-          // Data Visualizations Page
           doc.addPage();
-          
-          // Page header
+
           doc.setFontSize(18);
           doc.setTextColor(40, 44, 52);
           doc.text('Data Visualizations', margin, 30);
-          
-          // Chart titles for different report types
-          const chartTitles = this.getChartTitles(exportData.reportType);
-          
-          // Dashboard-style layout: 2 charts per page for better space utilization
+
           const chartWidth = pageWidth - 2 * margin;
-          const chartHeight = 100; // Optimized height for better proportions
-          const chartsPerPage = 2;
+          const chartHeight = 100;
           let currentY = 50;
           let chartsOnCurrentPage = 0;
-          
+          const chartsPerPage = 2;
+
+          const titles = [
+            'Total Weight by River',
+            'Total Items by Bot',
+            'Deployment Status Distribution',
+          ];
+
           charts.forEach((chartDataUrl, index) => {
-            // Check if we need a new page
             if (chartsOnCurrentPage >= chartsPerPage) {
               doc.addPage();
               doc.setFontSize(18);
@@ -1435,163 +1624,35 @@ class ExportService {
               currentY = 50;
               chartsOnCurrentPage = 0;
             }
-            
-            // Chart title with improved styling
-            if (chartTitles[index]) {
-              doc.setFontSize(14);
-              doc.setTextColor(40, 44, 52);
-              doc.text(chartTitles[index], margin, currentY);
-              currentY += 18;
-            }
-            
-            // Enhanced chart container with shadow effect
-            doc.setFillColor(248, 250, 252); // Light background
+
+            const title = titles[index] || 'Chart';
+            doc.setFontSize(14);
+            doc.setTextColor(40, 44, 52);
+            doc.text(title, margin, currentY);
+            currentY += 16;
+
+            doc.setFillColor(248, 250, 252);
             doc.setDrawColor(200, 200, 200);
             doc.setLineWidth(0.5);
             doc.roundedRect(margin, currentY, chartWidth, chartHeight, 3, 3, 'FD');
-            
-            // Add chart image with optimized padding
+
             const padding = 8;
-            doc.addImage(chartDataUrl, 'PNG', margin + padding, currentY + padding, 
-                        chartWidth - 2 * padding, chartHeight - 2 * padding);
-            
-            currentY += chartHeight + 25; // Optimized spacing between charts
+            doc.addImage(
+              chartDataUrl,
+              'PNG',
+              margin + padding,
+              currentY + padding,
+              chartWidth - 2 * padding,
+              chartHeight - 2 * padding
+            );
+
+            currentY += chartHeight + 20;
             chartsOnCurrentPage++;
           });
         }
       } catch (error) {
-        console.warn('Failed to add charts to PDF:', error);
+        console.warn('Failed to add deployment summary charts to PDF:', error);
       }
-    }
-    
-    // Insights & Interpretation Page
-    if (data.length > 0) {
-      doc.addPage();
-      
-      doc.setFontSize(18);
-      doc.setTextColor(40, 44, 52);
-      doc.text('Insights & Analysis', margin, 30);
-      
-      const insights = this.generateInsights(data, exportData.reportType);
-      let insightY = 50;
-      
-      insights.forEach((insight: string, index: number) => {
-        // Insight bullet point
-        doc.setFontSize(10);
-        doc.setTextColor(59, 130, 246);
-        doc.text(`• `, margin, insightY);
-        
-        // Insight content
-        doc.setTextColor(60, 60, 60);
-        const lines = doc.splitTextToSize(insight, pageWidth - 2 * margin - 10);
-        doc.text(lines, margin + 8, insightY);
-        insightY += lines.length * 5 + 8;
-        
-        if (insightY > pageHeight - 40) {
-          doc.addPage();
-          insightY = 30;
-        }
-      });
-    }
-    
-    // Data Summary Table Page
-    if (data.length > 0) {
-      doc.addPage();
-      
-      doc.setFontSize(18);
-      doc.setTextColor(40, 44, 52);
-      doc.text('Data Summary', margin, 30);
-      let currentY = 50;
-      
-      const summaryData = this.generateSummaryData(data, exportData.reportType);
-      
-      if (summaryData.length > 0) {
-        const headers = Object.keys(summaryData[0]);
-        const maxCols = Math.min(headers.length, 5);
-        const selectedHeaders = headers.slice(0, maxCols);
-        const colWidth = (pageWidth - 2 * margin) / maxCols;
-        
-        // Table header
-        doc.setFillColor(59, 130, 246);
-        doc.setTextColor(255, 255, 255);
-        doc.rect(margin, currentY, pageWidth - 2 * margin, 10, 'F');
-        
-        doc.setFontSize(8);
-        selectedHeaders.forEach((header, index) => {
-          const text = header.length > 18 ? header.substring(0, 18) + '...' : header;
-          doc.text(text, margin + (index * colWidth) + 2, currentY + 7);
-        });
-        
-        currentY += 10;
-        
-        // Table rows
-        doc.setTextColor(40, 44, 52);
-        summaryData.slice(0, 20).forEach((row, rowIndex) => {
-          if (rowIndex % 2 === 0) {
-            doc.setFillColor(248, 250, 252);
-            doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
-          }
-          
-          selectedHeaders.forEach((header, colIndex) => {
-            const value = String(row[header] || '');
-            const text = value.length > 25 ? value.substring(0, 25) + '...' : value;
-            doc.text(text, margin + (colIndex * colWidth) + 2, currentY + 6);
-          });
-          
-          currentY += 8;
-          
-          if (currentY > pageHeight - 30) {
-            doc.addPage();
-            currentY = 30;
-          }
-        });
-      }
-    }
-    
-    // Data Sample/Appendix Page
-    if (data.length > 0) {
-      doc.addPage();
-      
-      doc.setFontSize(18);
-      doc.setTextColor(40, 44, 52);
-      doc.text('Data Sample (First 10 Records)', margin, 30);
-      let currentY = 50;
-      
-      const sampleData = data.slice(0, 10);
-      const headers = Object.keys(data[0]);
-      const maxCols = Math.min(headers.length, 4);
-      const selectedHeaders = headers.slice(0, maxCols);
-      const colWidth = (pageWidth - 2 * margin) / maxCols;
-      
-      // Table header
-      doc.setFillColor(59, 130, 246);
-      doc.setTextColor(255, 255, 255);
-      doc.rect(margin, currentY, pageWidth - 2 * margin, 8, 'F');
-      
-      doc.setFontSize(8);
-      selectedHeaders.forEach((header, index) => {
-        const text = header.length > 15 ? header.substring(0, 15) + '...' : header;
-        doc.text(text, margin + (index * colWidth) + 2, currentY + 6);
-      });
-      
-      currentY += 8;
-      
-      // Sample data rows
-      doc.setTextColor(40, 44, 52);
-      sampleData.forEach((row, rowIndex) => {
-        if (rowIndex % 2 === 0) {
-          doc.setFillColor(248, 250, 252);
-          doc.rect(margin, currentY, pageWidth - 2 * margin, 6, 'F');
-        }
-        
-        selectedHeaders.forEach((header, colIndex) => {
-          const value = String(row[header] || '');
-          const text = value.length > 20 ? value.substring(0, 20) + '...' : value;
-          doc.text(text, margin + (colIndex * colWidth) + 2, currentY + 4);
-        });
-        
-        currentY += 6;
-      });
     }
     
     // Enhanced Footer on all pages
@@ -1608,36 +1669,15 @@ class ExportService {
   }
 
   async exportToExcel(exportData: ExportData, options: ExportExcelOptions = {}): Promise<void> {
-    const data = this.generateReportData(exportData);
+    const data = this.transformDeploymentsToRows(exportData);
     const filename = options.filename || this.generateFilename(exportData.reportType, 'xlsx');
     
     // Create workbook
     const wb = XLSX.utils.book_new();
     
-    // Create main data sheet
+    // Single data sheet (table-only)
     const ws = XLSX.utils.json_to_sheet(data);
-    
-    // Add metadata sheet
-    const metadata = {
-      'Report Title': exportData.title,
-      'Report Type': exportData.reportType,
-      'Timeline': exportData.timeline,
-      'Areas': exportData.selectedAreas.join(', '),
-      'Comparison Mode': exportData.comparisonMode,
-      'Generated': new Date().toLocaleString(),
-      'Total Records': data.length
-    };
-    
-    const metadataWs = XLSX.utils.json_to_sheet([metadata]);
-    
-    // Add summary sheet
-    const summary = this.generateSummaryData(data, exportData.reportType);
-    const summaryWs = XLSX.utils.json_to_sheet(summary);
-    
-    // Add sheets to workbook
     XLSX.utils.book_append_sheet(wb, ws, 'Data');
-    XLSX.utils.book_append_sheet(wb, metadataWs, 'Metadata');
-    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
     
     // Style the headers
     if (data.length > 0) {
@@ -1749,7 +1789,7 @@ class ExportService {
   }
 
   async exportToCSV(exportData: ExportData, options: ExportCSVOptions = {}): Promise<void> {
-    const data = this.generateReportData(exportData);
+    const data = this.transformDeploymentsToRows(exportData);
     const filename = options.filename || this.generateFilename(exportData.reportType, 'csv');
     
     if (data.length === 0) {
@@ -1760,22 +1800,14 @@ class ExportService {
     
     const headers = Object.keys(data[0]);
     const csvContent = [
-      `# AGOS Report - ${exportData.title}`,
-      `# Generated: ${new Date().toLocaleString()}`,
-      `# Timeline: ${exportData.timeline}`,
-      `# Areas: ${exportData.selectedAreas.join(', ')}`,
-      `# Comparison: ${exportData.comparisonMode}`,
-      `# Total Records: ${data.length}`,
-      '',
       headers.join(','),
-      ...data.map(row => 
+      ...data.map(row =>
         headers.map(header => {
           const value = row[header];
-          // Escape commas and quotes in CSV
           if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
             return `"${value.replace(/"/g, '""')}"`;
           }
-          return value || '';
+          return value ?? '';
         }).join(',')
       )
     ].join('\n');

@@ -8,7 +8,8 @@ import {
   onAuthStateChanged
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, realtimeDb } from '@/lib/firebase';
+import { ref as dbRef, runTransaction, onDisconnect, update, set } from 'firebase/database';
 
 interface UserData {
   first_name: string;
@@ -48,6 +49,54 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const heartbeatRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  const ttlMs = 120000;
+  const heartbeatMs = 30000;
+
+  const claimWebSession = async (uid: string): Promise<boolean> => {
+    const now = Date.now();
+    const expiresAt = now + ttlMs;
+    const sid = sessionId ?? `${uid}-${now}`;
+    if (!sessionId) setSessionId(sid);
+
+    const ref = dbRef(realtimeDb, `presence/users/${uid}/web`);
+    const result = await runTransaction(ref, (current: any) => {
+      if (current && typeof current === 'object') {
+        const curSession = current['sessionId'] as string | undefined;
+        const curExpiresRaw = current['expiresAt'];
+        const curExpires = typeof curExpiresRaw === 'number' ? curExpiresRaw : Number(curExpiresRaw || 0);
+        if (curSession && curSession !== sid && curExpires > now) {
+          return;
+        }
+      }
+      return {
+        sessionId: sid,
+        device: { platform: 'web' },
+        startedAt: now,
+        lastSeen: now,
+        expiresAt,
+      };
+    });
+
+    if (!result.committed) {
+      return false;
+    }
+
+    const od = onDisconnect(ref);
+    await od.remove();
+
+    if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+    heartbeatRef.current = setInterval(async () => {
+      const t = Date.now();
+      try {
+        await update(ref, { lastSeen: t, expiresAt: t + ttlMs });
+      } catch {}
+    }, heartbeatMs);
+
+    return true;
+  };
 
   const fetchUserData = async (userId: string): Promise<UserData | null> => {
     try {
@@ -80,9 +129,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await signOut(auth);
           setUserData(null);
           setUser(null);
+          if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
         }
       } else {
         setUserData(null);
+        if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
       }
       
       setLoading(false);
@@ -112,7 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUser(null);
         throw new Error('Only admin accounts can sign in.');
       }
-      
+
       // If we get here, user is admin - set the data
       setUserData(data);
       setUser(credentials.user);
@@ -124,6 +175,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await signOut(auth);
     setUserData(null);
+    if (heartbeatRef.current) { clearInterval(heartbeatRef.current); heartbeatRef.current = null; }
+    const uid = user?.uid;
+    if (uid) {
+      try {
+        await set(dbRef(realtimeDb, `presence/users/${uid}/web`), null);
+      } catch {}
+    }
   };
 
   const value = {

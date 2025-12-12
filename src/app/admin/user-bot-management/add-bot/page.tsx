@@ -183,7 +183,7 @@ export default function AddBotPage() {
                   Validate Bot ID
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                  Enter the Bot ID from your bot registry to verify it's available for registration.
+                  Enter the Bot ID from your bot registry to verify it&apos;s available for registration.
                 </p>
               </div>
 

@@ -204,7 +204,10 @@ export default function DeploymentHistory() {
 
     filteredDeployments.forEach(deployment => {
       const createdAt = deployment.created_at?.toDate ? deployment.created_at.toDate() : new Date(deployment.created_at);
-      const dateStr = createdAt.toISOString().split('T')[0];
+      const year = createdAt.getFullYear();
+      const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+      const day = String(createdAt.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
       const groupKey = `${dateStr}-${deployment.river_id}`;
 
       if (groupMap.has(groupKey)) {

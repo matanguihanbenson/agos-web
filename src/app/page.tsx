@@ -4,13 +4,10 @@ import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, getDocs, query } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  Bot,
   Ship,
   Recycle, 
   Droplets, 
@@ -152,7 +149,7 @@ export default function Home() {
             </div>
 
             {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-6" aria-label="Main navigation">
               <a href="#product" className={`text-sm font-medium transition-colors ${activeSection === 'product' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>Product</a>
               <a href="#features" className={`text-sm font-medium transition-colors ${activeSection === 'features' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>Features</a>
               <a href="#how-it-works" className={`text-sm font-medium transition-colors ${activeSection === 'how-it-works' ? 'text-blue-600' : 'text-gray-700 hover:text-blue-600'}`}>How It Works</a>
@@ -253,7 +250,7 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <section className="py-16 bg-gradient-to-b from-blue-50 to-white">
+      <section className="py-16 bg-gradient-to-b from-blue-50 to-white" aria-label="Hero section">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             {/* Left Column - Content */}
@@ -305,10 +302,10 @@ export default function Home() {
       </section>
 
       {/* Product Video Section */}
-      <section id="product" className="py-16 bg-white">
+      <section id="product" className="py-16 bg-white" aria-labelledby="product-heading">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">See AGOS in Action</h2>
+            <h2 id="product-heading" className="text-3xl font-bold text-gray-900 mb-3">See AGOS in Action</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Watch how our autonomous system revolutionizes river cleanup
             </p>
@@ -329,10 +326,10 @@ export default function Home() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-16 bg-gray-50">
+      <section id="features" className="py-16 bg-gray-50" aria-labelledby="features-heading">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Key Features</h2>
+            <h2 id="features-heading" className="text-3xl font-bold text-gray-900 mb-3">Key Features</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Everything you need to monitor, manage, and maintain clean rivers
             </p>
@@ -390,10 +387,10 @@ export default function Home() {
       </section>
 
       {/* How It Works Section */}
-      <section id="how-it-works" className="py-16 bg-blue-600">
+      <section id="how-it-works" className="py-16 bg-blue-600" aria-labelledby="how-it-works-heading">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-white mb-3">How AGOS Works</h2>
+            <h2 id="how-it-works-heading" className="text-3xl font-bold text-white mb-3">How AGOS Works</h2>
             <p className="text-lg text-blue-100 max-w-2xl mx-auto">
               Simple, automated river cleaning in four phases
             </p>
@@ -456,7 +453,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
             {[
               { 
                 sdg: "6", 
@@ -494,14 +491,14 @@ export default function Home() {
                 textColor: "text-cyan-600"
               }
             ].map((sdg, index) => (
-              <div key={index} className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm text-center">
-                <div className={`inline-flex p-4 rounded-full ${sdg.bgColor} ${sdg.textColor} mb-3`}>
+              <div key={index} className="bg-white rounded-lg p-3 md:p-6 border border-gray-200 shadow-sm text-center">
+                <div className={`inline-flex p-2 md:p-4 rounded-full ${sdg.bgColor} ${sdg.textColor} mb-2 md:mb-3`}>
                   {sdg.icon}
                 </div>
-                <div className={`text-2xl font-bold ${sdg.textColor} mb-2`}>
+                <div className={`text-xl md:text-2xl font-bold ${sdg.textColor} mb-1 md:mb-2`}>
                   SDG {sdg.sdg}
                 </div>
-                <h3 className="text-sm font-medium text-gray-700 leading-tight">{sdg.title}</h3>
+                <h3 className="text-xs md:text-sm font-medium text-gray-700 leading-tight">{sdg.title}</h3>
               </div>
             ))}
           </div>
@@ -509,7 +506,7 @@ export default function Home() {
       </section>
 
       {/* Use Cases Section */}
-      <section id="use-cases" className="py-20 bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50 relative overflow-hidden">
+      <section id="use-cases" className="py-20 bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50 relative overflow-hidden" aria-labelledby="use-cases-heading">
         {/* Background decoration */}
         <div className="absolute inset-0 opacity-30">
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-300 rounded-full blur-3xl"></div>
@@ -518,7 +515,7 @@ export default function Home() {
         
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">Who Benefits from AGOS?</h2>
+            <h2 id="use-cases-heading" className="text-4xl font-bold text-gray-900 mb-4">Who Benefits from AGOS?</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Built for organizations committed to environmental sustainability
             </p>
@@ -561,25 +558,25 @@ export default function Home() {
             ].map((useCase, index) => (
               <div 
                 key={index} 
-                className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 relative overflow-hidden"
+                className="bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-100 relative overflow-hidden"
               >
                 {/* Gradient accent bar */}
                 <div className={`absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r ${useCase.gradient}`}></div>
                 
-                <div className="flex items-start space-x-5">
+                <div className="flex flex-col md:flex-row items-start md:space-x-5 space-y-4 md:space-y-0">
                   {/* Icon with gradient background */}
-                  <div className={`flex-shrink-0 p-4 rounded-xl bg-gradient-to-br ${useCase.gradient} text-white shadow-lg`}>
+                  <div className={`flex-shrink-0 p-4 rounded-xl bg-gradient-to-br ${useCase.gradient} text-white shadow-lg mx-auto md:mx-0`}>
                     {useCase.icon}
                   </div>
                   
-                  <div className="flex-1">
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{useCase.title}</h3>
+                  <div className="flex-1 text-center md:text-left md:!ml-3">
+                    <h3 className="text-xl md:text-2xl font-bold text-gray-900 mb-3">{useCase.title}</h3>
                     <p className="text-sm text-gray-600 mb-5 leading-relaxed">{useCase.description}</p>
                     
                     {/* Benefits list with enhanced styling */}
                     <div className="space-y-3">
                       {useCase.benefits.map((benefit, idx) => (
-                        <div key={idx} className="flex items-center text-sm text-gray-700">
+                        <div key={idx} className="flex items-center justify-center md:justify-start text-sm text-gray-700">
                           <div className={`flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-br ${useCase.gradient} flex items-center justify-center mr-3 shadow-md`}>
                             <CheckCircle className="h-3.5 w-3.5 text-white" />
                           </div>
@@ -617,25 +614,28 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-8">
             {[
               {
-                name: "Mark Benson A. Matanguihan",
-                role: "Chief Technology Officer",
-                description: "Fullstack Developer and Mobile App Lead driving technical excellence",
-                color: "cyan"
-              },
-              {
                 name: "Jacqueline DC. Reyes, CDSA",
                 role: "Chief Executive Officer",
                 description: "AI/ML Engineer leading innovation in autonomous environmental technology",
-                color: "blue"
+                color: "blue",
+                desktopOrder: "md:order-2" // Center on desktop
+              },
+              {
+                name: "Mark Benson A. Matanguihan",
+                role: "Chief Technology Officer",
+                description: "Fullstack Developer and Mobile App Lead driving technical excellence",
+                color: "cyan",
+                desktopOrder: "md:order-1" // Left on desktop
               },
               {
                 name: "Alexandra Andrea S. Fortu, CDSA",
                 role: "Chief Financial Officer",
                 description: "Leading marketing, research, and financial strategy",
-                color: "purple"
+                color: "purple",
+                desktopOrder: "md:order-3" // Right on desktop
               }
             ].map((member, index) => (
-              <div key={index} className="bg-white rounded-2xl p-8 border border-gray-200 shadow-lg text-center">
+              <div key={index} className={`bg-white rounded-2xl p-8 border border-gray-200 shadow-lg text-center ${member.desktopOrder}`}>
                 {/* Avatar placeholder */}
                 <div className={`w-32 h-32 mx-auto mb-6 rounded-full bg-gradient-to-br from-${member.color}-500 to-${member.color}-600 flex items-center justify-center text-white text-4xl font-bold shadow-xl`}>
                   {member.name.split(' ')[0][0]}{member.name.split(' ')[1]?.[0] || member.name.split(' ')[2]?.[0]}
@@ -707,10 +707,10 @@ export default function Home() {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-16 bg-gray-50">
+      <section id="contact" className="py-16 bg-gray-50" aria-labelledby="contact-heading">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Get in Touch</h2>
+            <h2 id="contact-heading" className="text-3xl font-bold text-gray-900 mb-3">Get in Touch</h2>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Interested in learning more about AGOS or partnering with us?
             </p>
@@ -735,7 +735,7 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white py-16">
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white py-16" role="contentinfo" aria-label="Footer">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-5 gap-8 mb-12">
             {/* Logo and Description */}

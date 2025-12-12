@@ -127,8 +127,11 @@ export default function DeploymentDetail() {
       snapshot.forEach((doc) => {
         const data = doc.data();
         const createdAt = data.created_at?.toDate ? data.created_at.toDate() : new Date(data.created_at);
-        const dateStr = createdAt.toISOString().split('T')[0];
-        
+        const year = createdAt.getFullYear();
+        const month = String(createdAt.getMonth() + 1).padStart(2, '0');
+        const day = String(createdAt.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
         // Only include deployments from target date
         if (dateStr === targetDate) {
           deploymentsData.push({
